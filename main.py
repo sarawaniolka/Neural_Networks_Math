@@ -249,24 +249,63 @@ def train_with_evaluation(
         learning_rate (float): Step size for gradient descent.
         epochs (int): Number of training iterations.
     Returns:
-        list: Trained layers.
+        tuple: Trained layers and visualization data.
     """
     layers = initialize_layers(layer_sizes)
+
+    # For storing data for visualization
+    training_loss_history = []
+    testing_loss_history = []
+    testing_accuracy_history = []
+    gradients_history = []  # Store gradients for all epochs
+
     for epoch in range(epochs):
         total_training_loss = 0
+        epoch_gradients = []  # Store gradients for all examples in the current epoch
+
         for X, y_true in zip(X_train, y_train):
+            # Forward pass
             y_pred = network(X, layers)
             total_training_loss += mse(y_true, y_pred)
+
+            # Backpropagation
             dW_list, db_list = backpropagation(X, y_true, layers)
             layers = update_parameters(layers, dW_list, db_list, learning_rate)
 
+            # Save gradients for this training example
+            epoch_gradients.append({"dW": dW_list, "db": db_list})
+
+        # Save epoch-wise gradients
+        gradients_history.append(epoch_gradients)
+
+        # Calculate average losses and accuracy
         avg_training_loss = total_training_loss / len(X_train)
         testing_loss, testing_accuracy = evaluate(X_test, y_test, layers)
+
+        # Save loss and accuracy for visualization
+        training_loss_history.append(avg_training_loss)
+        testing_loss_history.append(testing_loss)
+        testing_accuracy_history.append(testing_accuracy)
+
         print(
             f"Epoch {epoch + 1}/{epochs}, Training Loss: {avg_training_loss:.6f}, "
             f"Testing Loss: {testing_loss:.6f}, Testing Accuracy: {testing_accuracy:.2f}%"
         )
-    return layers
+
+    # Prepare visualization data
+    visualization_data = {
+        "layer_sizes": layer_sizes,
+        "weights": [np.array(w).tolist() for w, _ in layers],
+        "biases": [np.array(b).tolist() for _, b in layers],
+        "training_loss_history": training_loss_history,
+        "testing_loss_history": testing_loss_history,
+        "testing_accuracy_history": testing_accuracy_history,
+        "gradients_history": gradients_history,  # Gradients for all epochs
+        "inputs": X_train[0].tolist(),  # Add the first training input as an example
+        "labels": y_train[0].tolist(),
+    }
+
+    return layers, visualization_data
 
 
 # Example Usage
@@ -274,6 +313,7 @@ if __name__ == "__main__":
     from sklearn.datasets import load_iris
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import OneHotEncoder, StandardScaler
+    import json
 
     # Load and preprocess the Iris dataset
     iris = load_iris()
@@ -298,7 +338,11 @@ if __name__ == "__main__":
     learning_rate = 0.01
     epochs = 100
 
-    # Train the model
-    trained_layers = train_with_evaluation(
+    # Train the model and collect visualization data
+    trained_layers, visualization_data = train_with_evaluation(
         X_train, y_train, X_test, y_test, layer_sizes, learning_rate, epochs
     )
+
+    # Save visualization data to JSON
+    with open("visualization_data.json", "w") as f:
+        json.dump(visualization_data, f)
